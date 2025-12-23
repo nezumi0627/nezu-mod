@@ -1,0 +1,9 @@
+Package: com.yourcompany.nezulinemod
+Name: NezuLineMod
+Depends: mobilesubstrate
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: Use phone tab instead of news tab in LINE
+Maintainer: nezumi0627
+Author: nezumi0627
+Section: Tweaks

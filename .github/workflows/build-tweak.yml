@@ -60,6 +60,7 @@ jobs:
         continue-on-error: true
 
       - name: Inject Tweak into IPA
+        id: inject
         run: |
           # 1. Determine which IPA to use
           if [ -n "${{ github.event.inputs.ipa_url }}" ]; then
@@ -76,8 +77,11 @@ jobs:
           sudo npm install -g azulejo
           azulejo -i original.ipa -t line-mod/packages/*.deb -o NezuLine_Injected.ipa
           
+          # 3. Signal success for the next step
+          echo "injected=true" >> $GITHUB_OUTPUT
+          
       - name: Upload Injected IPA Artifact
-        if: github.event.inputs.ipa_url != '' || -f "NezuLine_Injected.ipa"
+        if: steps.inject.outputs.injected == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: NezuLineMod_Injected_IPA

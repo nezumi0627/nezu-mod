@@ -25,9 +25,11 @@ jobs:
 
       - name: Setup iOS SDKs
         run: |
-          # Theos標準のSDK取得方法、または信頼できるリポジトリから取得
-          git clone --depth 1 https://github.com/theos/sdks.git theos/sdks
-          # エラー回避のため、もしSDKが見つからない場合は古いバージョンのパス設定などが必要になることがあるが、最新Theosなら通常はこれでOK
+          if [ ! -d "theos/sdks" ]; then
+            git clone --depth 1 https://github.com/theos/sdks.git theos/sdks
+          else
+            echo "SDKs directory already exists, skipping clone."
+          fi
 
       - name: Build Tweak (.deb)
         run: |

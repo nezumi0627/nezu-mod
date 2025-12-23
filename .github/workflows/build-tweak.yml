@@ -51,18 +51,33 @@ jobs:
           name: NezuLineMod_DEB
           path: line-mod/packages/*.deb
 
+      - name: Download Manual IPA Artifact (if exists)
+        if: github.event.inputs.ipa_url == ''
+        uses: actions/download-artifact@v4
+        with:
+          name: original_ipa
+          path: ./
+        continue-on-error: true
+
       - name: Inject Tweak into IPA
-        if: github.event.inputs.ipa_url != ''
         run: |
-          # Download IPA
-          curl -L "${{ github.event.inputs.ipa_url }}" -o original.ipa
+          # 1. Determine which IPA to use
+          if [ -n "${{ github.event.inputs.ipa_url }}" ]; then
+            echo "Using IPA from URL..."
+            curl -L "${{ github.event.inputs.ipa_url }}" -o original.ipa
+          elif [ -f "original.ipa" ]; then
+            echo "Using manually uploaded original.ipa from artifact..."
+          else
+            echo "No IPA provided (neither URL nor artifact). Skipping injection."
+            exit 0
+          fi
           
-          # Use azulejo for injection
-          # Note: azulejo automatically handles deb extraction and patching
-          npx azulejo -i original.ipa -t line-mod/packages/*.deb -o NezuLine_Injected.ipa
+          # 2. Install and use azulejo for injection
+          sudo npm install -g azulejo
+          azulejo -i original.ipa -t line-mod/packages/*.deb -o NezuLine_Injected.ipa
           
       - name: Upload Injected IPA Artifact
-        if: github.event.inputs.ipa_url != ''
+        if: github.event.inputs.ipa_url != '' || -f "NezuLine_Injected.ipa"
         uses: actions/upload-artifact@v4
         with:
           name: NezuLineMod_Injected_IPA

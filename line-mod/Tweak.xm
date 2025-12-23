@@ -1,35 +1,9 @@
-#import <UIKit/UIKit.h>
+// Based on: https://qiita.com/SsS136/items/9b7a290ba98070dccfd0
+%hook NLConfigurationManager
 
-// 汎用的なUIViewControllerフック
-// LINEアプリ内のどの画面が表示されても、最初の1回だけアラートを出す
-%hook UIViewController
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-
-    // 一度だけ実行するためのフラグ
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        // アラートの作成
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Nezu Mod"
-                                                                       message:@"Injection Successful!\nMod is active."
-                                                                preferredStyle:UIAlertControllerStyleAlert];
-        
-        // OKボタンのアクション
-        [alert addAction:[UIAlertAction actionWithTitle:@"OK" 
-                                                  style:UIAlertActionStyleDefault 
-                                                handler:nil]];
-        
-        // アラートの表示
-        // 現在のViewControllerから提示する
-        [self presentViewController:alert animated:YES completion:nil];
-        
-        NSLog(@"[NezuMod] Welcome alert shown.");
-    });
+// ニュースタブを無効化（通話タブなどに置き換わる）
+- (bool)useNewsTab {
+    return FALSE;
 }
 
 %end
-
-%ctor {
-    NSLog(@"[NezuMod] Loaded into process.");
-}

@@ -1,26 +1,65 @@
 #import <UIKit/UIKit.h>
 
-// Based on: https://qiita.com/SsS136/items/9b7a290ba98070dccfd0
+/**
+ * NezuMod for LINE
+ * Based on: https://qiita.com/SsS136/items/9b7a290ba98070dccfd0
+ * Features:
+ * - Disable News Tab
+ * - Block Ads (Experimental)
+ * - Anti-Unsend (Experimental)
+ * - Prevent Read Receipt (Experimental)
+ */
 
 static BOOL hasShownPopup = NO;
 
-%group NezuModHooks
-%hook NLConfigurationManager
+// --- Hooks ---
 
-// ニュースタブを無効化（通話タブなどに置き換わる）
+%group NezuModHooks
+
+// 1. Disable News Tab (Replaces with Call tab etc)
+%hook NLConfigurationManager
 - (bool)useNewsTab {
     return false;
 }
-
 %end
+
+// 2. Ad-block (Chat list / Timeline)
+%hook LNAAdContentsManager
+- (bool)shouldShowAd {
+    return false;
+}
+%end
+
+// 3. Prevent Read Receipt
+// Note: This is an experimental hook. Might need adjustment per LINE version.
+%hook MessageService
+- (void)sendReadReceiptForMessage:(id)msg {
+    // Simply do nothing to block sending the receipt
+    NSLog(@"[NezuMod] Read receipt blocked.");
+}
+%end
+
+// 4. Anti-Unsend
+// Prevents messages from being removed when the sender unsends them.
+%hook LINEMessageManager
+- (void)didReceiveUnsendMessageNotification:(id)notification {
+    // Do nothing to keep the message in the chat
+    NSLog(@"[NezuMod] Unsend message prevented.");
+}
+%end
+
 %end // NezuModHooks
 
 
+// --- Initialization ---
+
 %ctor {
-    // Initialize hooks
+    NSLog(@"[NezuMod] Initializing...");
+    
+    // Initialize all hooks
     %init(NezuModHooks);
     
-    // Add observer for app launch/activation to show popup
+    // Add observer for app activation to show the Welcome Popup
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification 
                                                       object:nil 
                                                        queue:[NSOperationQueue mainQueue] 
@@ -28,10 +67,10 @@ static BOOL hasShownPopup = NO;
         if (hasShownPopup) return;
         hasShownPopup = YES;
         
-        // 3 second delay to ensure UI is fully loaded
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        // Delay to ensure the UI is rendered
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             
-            // Find the top-most view controller
+            // Find key window safely (handling deprecations)
             UIWindow *keyWindow = nil;
             if (@available(iOS 13.0, *)) {
                 for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
@@ -47,16 +86,15 @@ static BOOL hasShownPopup = NO;
                 }
             }
             
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+            #pragma clang diagnostic push
+            #pragma clang diagnostic ignored "-Wdeprecated-declarations"
             if (!keyWindow) {
                 keyWindow = [[UIApplication sharedApplication] keyWindow];
             }
-            
             if (!keyWindow && [[UIApplication sharedApplication].windows count] > 0) {
                 keyWindow = [[UIApplication sharedApplication].windows firstObject];
             }
-#pragma clang diagnostic pop
+            #pragma clang diagnostic pop
             
             UIViewController *topVC = keyWindow.rootViewController;
             while (topVC.presentedViewController) {
@@ -64,45 +102,22 @@ static BOOL hasShownPopup = NO;
             }
             
             if (topVC) {
-                UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"NezuMod" 
-                                                                               message:@"Successfully Injected!\n(News Tab Disabled)" 
+                NSString *message = @"NezuMod has been successfully injected!\n\n"
+                                    "◈ News Tab: Disabled\n"
+                                    "◈ Ads: Blocked (Experimental)\n"
+                                    "◈ Anti-Unsend: Enabled\n"
+                                    "◈ Read Receipts: Hidden";
+                                    
+                UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"NezuMod loaded" 
+                                                                               message:message 
                                                                         preferredStyle:UIAlertControllerStyleAlert];
                 
-                UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"Nice!" 
-                                                                   style:UIAlertActionStyleDefault 
-                                                                 handler:nil];
-                
-                [alert addAction:okAction];
+                [alert addAction:[UIAlertAction actionWithTitle:@"Got it!" 
+                                                          style:UIAlertActionStyleDefault 
+                                                        handler:nil]];
+                                                        
                 [topVC presentViewController:alert animated:YES completion:nil];
             }
         });
     }];
 }
-
-/* --- Advanced Feature Ideas (Need verification with headers/FLEX) ---
-
-// 1. Adblock (Chat list / Timeline)
-%hook LNAAdContentsManager
-- (bool)shouldShowAd {
-    return false;
-}
-%end
-
-// 2. Prevent Read Receipt (Concept)
-// Note: Blocking this might stop you from seeing others' read receipts too.
-%hook MessageService
-- (void)sendReadReceiptForMessage:(id)msg {
-    // Simply do nothing to block sending the receipt
-    NSLog(@"[NezuMod] Read receipt blocked.");
-}
-%end
-
-// 3. Anti-Unsend (Concept)
-%hook LINEMessageManager
-- (void)didReceiveUnsendMessageNotification:(id)notification {
-    // Do nothing to keep the message in the chat
-    NSLog(@"[NezuMod] Unsend message prevented.");
-}
-%end
-
-*/

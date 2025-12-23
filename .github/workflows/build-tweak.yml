@@ -1,0 +1,44 @@
+name: Build LINE Tweak
+
+on:
+  push:
+    paths:
+      - 'line-mod/**'
+      - '.github/workflows/build-tweak.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Tweak
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Theos
+        uses: actions/checkout@v4
+        with:
+          repository: theos/theos
+          path: theos
+          submodules: recursive
+
+      - name: Setup iOS SDKs
+        run: |
+          # Theos標準のSDK取得方法、または信頼できるリポジトリから取得
+          git clone --depth 1 https://github.com/theos/sdks.git theos/sdks
+          # エラー回避のため、もしSDKが見つからない場合は古いバージョンのパス設定などが必要になることがあるが、最新Theosなら通常はこれでOK
+
+      - name: Build Tweak (.deb)
+        run: |
+          export THEOS=$PWD/theos
+          cd line-mod
+          # FINALPACKAGE=1 でデバッグ情報を除去し、最適化
+          make package FINALPACKAGE=1
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NezuLineMod_DEB
+          path: line-mod/packages/*.deb
+          if-no-files-found: error

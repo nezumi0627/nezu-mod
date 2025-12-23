@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Twitter
+    url: https://twitter.com/intent/user?screen_name=Chi_p
+    about: 開発者のプロフィールです
+  - name: Discussions
+    url: https://github.com/Chipppppppppp/LIME/discussions/new?category=q-a
+    about: 質問等はこちらへ

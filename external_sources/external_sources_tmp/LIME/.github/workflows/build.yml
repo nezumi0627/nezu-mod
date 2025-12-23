@@ -1,0 +1,174 @@
+name: Build
+
+on:
+  push:
+    paths-ignore:
+      - '*.md'
+      - '*.txt'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Release'
+        type: boolean
+        required: true
+        default: false
+      lspatch:
+        description: 'LSPatch'
+        type: boolean
+        required: true
+        default: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      discussions: write
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set environments
+        run: |
+          {
+            echo "packageId=$(grep namespace app/build.gradle | awk '{print $2}' | tr -d \')"
+            echo "versionName=v$(grep versionName app/build.gradle | awk '{print $2}' | tr -d \")"
+            echo "versionCode=$(grep versionCode app/build.gradle | awk '{print $2}')"
+            echo "LINE_versionCode=$(grep HOOK_TARGET_VERSION app/build.gradle | awk '{print $4}' | tr -d \'\")"
+            echo "commit=$(echo ${{ github.sha }} | cut -c-7)"
+            echo "repo=$(echo ${GITHUB_REPOSITORY#$GITHUB_REPOSITORY_OWNER/})"
+          } >> $GITHUB_ENV
+
+      - name: Set LINE versionName
+        run: |
+          LINE_versionCode="${{ env.LINE_versionCode }}"
+          major="${LINE_versionCode:0:2}"
+          minor="${LINE_versionCode:2:2}"
+          patch="${LINE_versionCode:4:1}"
+          if (( ${minor} < 10 )); then
+              minor="${LINE_versionCode:2:1}"
+          fi
+          echo "LINE_versionName=$(echo ${major}.${minor}.${patch})" >> $GITHUB_ENV
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Get previous version name
+        uses: oprypin/find-latest-tag@v1
+        if: github.event.inputs.release == 'true'
+        id: previous
+        with:
+          repository: ${{ github.repository }}
+          releases-only: true
+
+      - name: Release check
+        if: github.event.inputs.release == 'true'
+        run: |
+          if [ "${{ secrets.STORE_FILE }}" == "" ]; then
+            echo -e "\nERROR!\nTo release, you need to set up a signing key!\n"
+            echo "STORE_FILE: A Base64 encoded string of the signing key in JKS format"
+            echo "STORE_PASSWORD: Key store password"
+            echo "KEY_ALIAS: Key alias"
+            echo "KEY_PASSWORD: Key password"
+            echo ""
+            exit 1
+          fi
+          if [ "${{ steps.previous.outputs.tag }}" == "${{ env.versionName }}" ]; then
+            echo -e "\nERROR!\nThe same tag already exists!\n"
+            echo "Please change versionName in build.gradle"
+            echo ""
+            exit 1
+          fi
+
+      - name: Build module
+        run: |
+          if [ "${{ inputs.release }}" == "true" ]; then
+            echo "${{ secrets.STORE_FILE }}" | base64 -d > app/release.jks
+            export STORE_PASSWORD="${{ secrets.STORE_PASSWORD }}"
+            export KEY_ALIAS="${{ secrets.KEY_ALIAS }}"
+            export KEY_PASSWORD="${{ secrets.KEY_PASSWORD }}"
+            ./gradlew --no-daemon --stacktrace --warning-mode=all assembleRelease
+            cp -f app/build/outputs/apk/release/app-release.apk ${{ env.repo }}-${{ env.versionName }}.apk
+          else
+            ./gradlew --no-daemon --stacktrace --warning-mode=all assembleDebug
+          fi
+
+      - name: LSPatch
+        if: github.event.inputs.lspatch == 'true'
+        run: |
+          cat << EOF > conf
+          https://github.com/JingMatrix/LSPatch/releases/latest/download/lspatch.jar
+            out=lspatch.jar
+          https://line-android-universal-download.line-scdn.net/line-${{ env.LINE_versionName }}.apk
+            out=line-${{ env.LINE_versionName }}.apk
+          EOF
+          echo "Downloading APK..."
+          aria2c --no-conf -x16 -s16 -R -m0 -V --async-dns=false -iconf
+          echo "Patching LIME..."
+          java -jar lspatch.jar "line-${{ env.LINE_versionName }}.apk" -m "app/build/outputs/apk/debug/app-debug.apk" -l 2 -v
+
+      - name: Upload module
+        uses: actions/upload-artifact@v4
+        if: github.event.inputs.release != 'true'
+        with:
+          name: ${{ env.repo }}-${{ env.versionName }}@${{ env.commit }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload patched APK
+        uses: actions/upload-artifact@v4
+        if: github.event.inputs.lspatch == 'true'
+        with:
+          name: LINE-${{ env.LINE_versionName }}@${{ env.commit }}
+          path: line-${{ env.LINE_versionName }}-*-lspatched.apk
+          if-no-files-found: error
+
+      - name: Release original repository
+        uses: softprops/action-gh-release@v2
+        if: github.event.inputs.release == 'true'
+        with:
+          tag_name: ${{ env.versionName }}
+          draft: false
+          prerelease: false
+          make_latest: true
+          discussion_category_name: Announcements
+          generate_release_notes: true
+          files: ${{ env.repo }}-${{ env.versionName }}.apk
+          fail_on_unmatched_files: true
+          body: |
+            # 更新内容
+            
+            ## 対応するLINEのバージョン
+            ${{ env.LINE_versionName }}
+            
+            ### 差分
+            https://github.com/${{ github.repository }}/compare/${{ steps.previous.outputs.tag }}...${{ env.versionName }}
+
+      - name: Release to Xposed repository
+        uses: softprops/action-gh-release@v2
+        if: github.event.inputs.release == 'true'
+        with:
+          repository: Xposed-Modules-Repo/${{ env.packageId }}
+          tag_name: ${{ env.versionCode }}-${{ env.versionName }}
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: ${{ env.repo }}-${{ env.versionName }}.apk
+          body: |
+            ## Details
+            https://github.com/${{ github.repository }}/releases/${{ env.versionName }}
+            
+            ## Supported LINE version
+            ${{ env.LINE_versionName }}
+            
+            ### Diff
+            https://github.com/${{ github.repository }}/compare/${{ steps.previous.outputs.tag }}...${{ env.versionName }}

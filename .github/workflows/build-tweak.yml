@@ -51,13 +51,7 @@ jobs:
           name: NezuLineMod_DEB
           path: line-mod/packages/*.deb
 
-      - name: Download Manual IPA Artifact (if exists)
-        if: github.event.inputs.ipa_url == ''
-        uses: actions/download-artifact@v4
-        with:
-          name: original_ipa
-          path: ./
-        continue-on-error: true
+
 
       - name: Inject Tweak into IPA
         id: inject
@@ -67,9 +61,9 @@ jobs:
             echo "Using IPA from URL..."
             curl -L "${{ github.event.inputs.ipa_url }}" -o original.ipa
           elif [ -f "original.ipa" ]; then
-            echo "Using manually uploaded original.ipa from artifact..."
+            echo "Using local original.ipa located in repository..."
           else
-            echo "No IPA provided (neither URL nor artifact). Skipping injection."
+            echo "No IPA provided (neither URL nor local file). Skipping injection."
             exit 0
           fi
           

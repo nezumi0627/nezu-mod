@@ -10,6 +10,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = NezuLineMod
 
 NezuLineMod_FILES = Tweak.xm
+NezuLineMod_FRAMEWORKS = UIKit
 NezuLineMod_CFLAGS = -fobjc-arc
 
 include $(THEOS_MAKE_PATH)/tweak.mk

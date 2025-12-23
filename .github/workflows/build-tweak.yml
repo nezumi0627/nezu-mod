@@ -1,4 +1,4 @@
-name: Build LINE Tweak
+name: Build and Inject LINE Tweak
 
 on:
   push:
@@ -6,6 +6,11 @@ on:
       - 'line-mod/**'
       - '.github/workflows/build-tweak.yml'
   workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: 'URL to your decrypted LINE IPA (Direct Link)'
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -38,12 +43,27 @@ jobs:
         run: |
           export THEOS=$PWD/theos
           cd line-mod
-          # FINALPACKAGE=1 でデバッグ情報を除去し、最適化
           make package FINALPACKAGE=1
 
-      - name: Upload Artifact
+      - name: Upload DEB Artifact
         uses: actions/upload-artifact@v4
         with:
           name: NezuLineMod_DEB
           path: line-mod/packages/*.deb
-          if-no-files-found: error
+
+      - name: Inject Tweak into IPA
+        if: github.event.inputs.ipa_url != ''
+        run: |
+          # Download IPA
+          curl -L "${{ github.event.inputs.ipa_url }}" -o original.ipa
+          
+          # Use azulejo for injection
+          # Note: azulejo automatically handles deb extraction and patching
+          npx azulejo -i original.ipa -t line-mod/packages/*.deb -o NezuLine_Injected.ipa
+          
+      - name: Upload Injected IPA Artifact
+        if: github.event.inputs.ipa_url != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: NezuLineMod_Injected_IPA
+          path: NezuLine_Injected.ipa

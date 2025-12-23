@@ -47,6 +47,8 @@ static BOOL hasShownPopup = NO;
                 }
             }
             
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             if (!keyWindow) {
                 keyWindow = [[UIApplication sharedApplication] keyWindow];
             }
@@ -54,6 +56,7 @@ static BOOL hasShownPopup = NO;
             if (!keyWindow && [[UIApplication sharedApplication].windows count] > 0) {
                 keyWindow = [[UIApplication sharedApplication].windows firstObject];
             }
+#pragma clang diagnostic pop
             
             UIViewController *topVC = keyWindow.rootViewController;
             while (topVC.presentedViewController) {

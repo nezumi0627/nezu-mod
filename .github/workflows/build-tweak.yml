@@ -31,6 +31,9 @@ jobs:
             echo "SDKs directory already exists, skipping clone."
           fi
 
+      - name: Install ldid
+        run: brew install ldid
+
       - name: Build Tweak (.deb)
         run: |
           export THEOS=$PWD/theos

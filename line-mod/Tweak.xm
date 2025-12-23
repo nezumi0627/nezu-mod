@@ -3,7 +3,7 @@
 
 // ニュースタブを無効化（通話タブなどに置き換わる）
 - (bool)useNewsTab {
-    return FALSE;
+    return false;
 }
 
 %end
